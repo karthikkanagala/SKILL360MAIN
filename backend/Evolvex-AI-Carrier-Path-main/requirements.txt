@@ -1,0 +1,14 @@
+streamlit
+scikit-learn
+PyPDF2
+python-docx
+beautifulsoup4
+python-dotenv
+spacy
+pandas
+numpy
+xgboost
+joblib
+requests
+lxml
+html5lib

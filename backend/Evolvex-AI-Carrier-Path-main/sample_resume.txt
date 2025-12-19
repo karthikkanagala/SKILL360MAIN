@@ -1,0 +1,54 @@
+JOHN DOE
+Email: john.doe@email.com | Phone: (555) 123-4567 | Location: Mumbai, India
+LinkedIn: linkedin.com/in/johndoe | GitHub: github.com/johndoe
+
+PROFESSIONAL SUMMARY
+Aspiring Software Developer with strong foundation in Python, JavaScript, and Web Development.
+Passionate about building scalable applications and learning new technologies.
+
+EDUCATION
+Bachelor of Technology in Computer Science Engineering
+XYZ University, Mumbai | Expected Graduation: May 2025 | CGPA: 8.5/10
+
+TECHNICAL SKILLS
+• Programming Languages: Python, JavaScript, Java, C++
+• Web Technologies: HTML, CSS, React, Node.js, Express
+• Databases: MySQL, MongoDB, PostgreSQL
+• Tools & Frameworks: Git, Docker, AWS, TensorFlow, Django
+• Soft Skills: Problem Solving, Team Collaboration, Communication
+
+PROJECTS
+
+E-Commerce Website
+• Developed full-stack e-commerce platform using React and Node.js
+• Implemented user authentication, shopping cart, and payment gateway integration
+• Technologies: React, Node.js, MongoDB, Express, Stripe API
+
+Machine Learning Model for Price Prediction
+• Built ML model to predict house prices using scikit-learn
+• Achieved 89% accuracy on test dataset
+• Technologies: Python, pandas, scikit-learn, matplotlib
+
+EXPERIENCE
+
+Software Development Intern | Tech Solutions Inc. | Jun 2024 - Aug 2024
+• Developed REST APIs for client management system using Node.js and Express
+• Collaborated with team of 5 developers using Agile methodology
+• Improved application performance by 30% through code optimization
+
+CERTIFICATIONS
+• Python for Data Science - Coursera
+• AWS Certified Cloud Practitioner
+• Full Stack Web Development - Udemy
+
+ACHIEVEMENTS
+• Won 2nd place in College Hackathon 2024
+• Published research paper on "AI in Healthcare" in IEEE conference
+• Active contributor to open-source projects on GitHub
+
+LANGUAGES
+• English (Fluent)
+• Hindi (Native)
+
+INTERESTS
+Competitive Programming, Open Source Contribution, Tech Blogging

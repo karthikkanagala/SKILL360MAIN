@@ -8,7 +8,7 @@ from typing import Dict, Optional
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../Evolvex-AI--main/Evolvex-AI--main/src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Evolvex-AI-Carrier-Path-main/src')))
 
 try:
     from github_analyzer import analyze_github_profile
@@ -39,7 +39,10 @@ async def analyze_portfolio_endpoint(request: GitHubAnalysisRequest):
     Analyze GitHub portfolio and provide scoring
     """
     try:
-        portfolio = analyze_portfolio(request.username)
+        # First get the GitHub analysis
+        github_analysis = analyze_github_profile(request.username)
+        # Then pass the analysis dict to portfolio analyzer
+        portfolio = analyze_portfolio(github_analysis)
         return portfolio
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error analyzing portfolio: {str(e)}")

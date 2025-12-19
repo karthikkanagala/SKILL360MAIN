@@ -8,7 +8,7 @@ from typing import Dict, Optional
 import sys
 import os
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../../Evolvex-AI--main/Evolvex-AI--main/src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Evolvex-AI-Carrier-Path-main/src')))
 
 try:
     from demo_profile import check_profile_completeness, get_demo_profile, load_demo_profile_to_session

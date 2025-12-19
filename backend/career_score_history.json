@@ -128,5 +128,38 @@
       "interview_readiness": 0,
       "career_trajectory": 0
     }
+  },
+  {
+    "score": 302,
+    "timestamp": "2025-12-19T10:48:54.901687",
+    "breakdown": {
+      "resume": 172,
+      "github": 0,
+      "certifications": 80,
+      "activities": 50,
+      "portfolio": 0
+    }
+  },
+  {
+    "score": 75,
+    "timestamp": "2025-12-19T10:52:20.755238",
+    "breakdown": {
+      "resume": 75,
+      "github": 0,
+      "certifications": 0,
+      "activities": 0,
+      "portfolio": 0
+    }
+  },
+  {
+    "score": 502,
+    "timestamp": "2025-12-19T12:04:21.942798",
+    "breakdown": {
+      "resume": 172,
+      "github": 200,
+      "certifications": 80,
+      "activities": 50,
+      "portfolio": 0
+    }
   }
 ]

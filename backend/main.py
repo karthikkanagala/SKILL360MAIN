@@ -1,14 +1,19 @@
 """
 FastAPI Backend for Skill Passport 360
-Main application entry point with CORS enabled
+Main application entry point with CORS enabled, MongoDB, and Google API integration
 """
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from contextlib import asynccontextmanager
 import sys
 import os
 
+# Load environment variables first
+from dotenv import load_dotenv
+load_dotenv()
+
 # Add src directory to path to import existing modules
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Evolvex-AI--main/Evolvex-AI--main/src')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), 'Evolvex-AI-Carrier-Path-main/src')))
 
 from routers import (
     resume,
@@ -25,16 +30,58 @@ from routers import (
     gap_analysis,
 )
 
+# Import database module
+try:
+    from database import MongoDB, GoogleAPI, init_database, test_google_api
+    DATABASE_AVAILABLE = True
+except ImportError as e:
+    print(f"Warning: Database module not available: {e}")
+    DATABASE_AVAILABLE = False
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Application lifespan events - startup and shutdown"""
+    # Startup
+    print("\n" + "="*60)
+    print("🚀 Skill Passport 360 - Starting up...")
+    print("="*60)
+    
+    if DATABASE_AVAILABLE:
+        # Initialize MongoDB
+        print("\n📦 Initializing MongoDB...")
+        db = init_database()
+        if db is not None:
+            app.state.db = db
+        
+        # Initialize Google API
+        print("\n🤖 Initializing Google Generative AI...")
+        test_google_api()
+    
+    print("\n" + "="*60)
+    print("✅ Server is ready!")
+    print("="*60 + "\n")
+    
+    yield
+    
+    # Shutdown
+    print("\n🛑 Shutting down...")
+    if DATABASE_AVAILABLE:
+        MongoDB.close()
+    print("Goodbye! 👋\n")
+
+
 app = FastAPI(
     title="Skill Passport 360 API",
-    description="AI-Powered Career Development Platform",
-    version="1.0.0"
+    description="AI-Powered Career Development Platform with MongoDB and Google Gemini Integration",
+    version="2.0.0",
+    lifespan=lifespan
 )
 
 # CORS middleware - allow React frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://localhost:5173"],  # Vite default port
+    allow_origins=["http://localhost:3000", "http://localhost:5173", "*"],  # Vite default port
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -54,17 +101,63 @@ app.include_router(mentorship.router, prefix="/api/mentorship", tags=["Mentorshi
 app.include_router(opportunities.router, prefix="/api/opportunities", tags=["Opportunities"])
 app.include_router(gap_analysis.router, prefix="/api/gap-analysis", tags=["Gap Analysis"])
 
+
 @app.get("/")
 async def root():
     return {
         "message": "Skill Passport 360 API",
-        "version": "1.0.0",
-        "status": "running"
+        "version": "2.0.0",
+        "status": "running",
+        "features": {
+            "mongodb": DATABASE_AVAILABLE,
+            "google_api": DATABASE_AVAILABLE and GoogleAPI.get_api_key() is not None if DATABASE_AVAILABLE else False
+        }
     }
+
 
 @app.get("/health")
 async def health_check():
-    return {"status": "healthy"}
+    """Health check endpoint with service status"""
+    status = {
+        "status": "healthy",
+        "services": {
+            "api": True
+        }
+    }
+    
+    if DATABASE_AVAILABLE:
+        # Check MongoDB
+        try:
+            client = MongoDB.get_client()
+            if client:
+                client.admin.command('ping')
+                status["services"]["mongodb"] = True
+            else:
+                status["services"]["mongodb"] = False
+        except Exception:
+            status["services"]["mongodb"] = False
+        
+        # Check Google API
+        status["services"]["google_api"] = GoogleAPI.get_api_key() is not None
+    
+    return status
+
+
+@app.get("/api/gemini/test")
+async def test_gemini():
+    """Test Google Gemini API endpoint"""
+    if not DATABASE_AVAILABLE:
+        return {"error": "Database module not available"}
+    
+    try:
+        response = GoogleAPI.generate_content("Say 'Hello from Gemini!' in a friendly way.")
+        if response:
+            return {"success": True, "response": response}
+        else:
+            return {"success": False, "error": "No response from Gemini"}
+    except Exception as e:
+        return {"success": False, "error": str(e)}
+
 
 if __name__ == "__main__":
     import uvicorn
@@ -84,5 +177,3 @@ if __name__ == "__main__":
 
     print(f"🚀 Starting server on http://0.0.0.0:{port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
-
-

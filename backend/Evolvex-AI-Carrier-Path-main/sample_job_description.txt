@@ -1,0 +1,38 @@
+SOFTWARE DEVELOPER POSITION
+Company: TechCorp Solutions
+
+Job Description:
+We are seeking a talented Software Developer to join our dynamic team. The ideal candidate will have strong programming skills and passion for technology.
+
+Required Skills:
+• Python
+• JavaScript
+• React
+• Node.js
+• MongoDB
+• SQL
+• Git
+• Docker
+• Problem Solving
+• Team Collaboration
+
+Responsibilities:
+• Develop and maintain web applications
+• Write clean, maintainable code
+• Collaborate with cross-functional teams
+• Participate in code reviews
+• Debug and troubleshoot applications
+• Implement new features based on requirements
+
+Nice to Have:
+• AWS or Azure experience
+• Machine Learning knowledge
+• Agile/Scrum experience
+• Open source contributions
+
+Experience Level: Entry Level / Junior (0-2 years)
+Location: Mumbai, India / Remote
+Salary: ₹4-8 LPA
+
+About the Company:
+TechCorp Solutions is a leading software development company focused on building innovative web applications for clients worldwide.

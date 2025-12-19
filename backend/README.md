@@ -79,4 +79,33 @@ backend/
 └── requirements.txt
 ```
 
+## 📚 Technical Documentation
 
+For detailed information about:
+- **How the backend works**
+- **Data processing pipeline**
+- **ML models and training**
+- **Career score calculation**
+- **API architecture**
+
+See **[TECHNICAL_DOCUMENTATION.md](./TECHNICAL_DOCUMENTATION.md)**
+
+## 🤖 ML & Data Processing Summary
+
+| Component | Method | Description |
+|-----------|--------|-------------|
+| **Resume Parsing** | PyPDF2 + OCR | Extracts text from PDF/DOCX files |
+| **Skill Extraction** | Pattern Matching | Matches 50+ technical skills |
+| **ATS Scoring** | Rule-Based (6 factors) | Scores resume quality 0-100 |
+| **Career Score** | Weighted Sum | Combines 5 components (0-1000) |
+| **Fit Classifier** | Pre-trained XGBoost | Job-candidate matching |
+| **NER Extraction** | spaCy | Named entity recognition |
+
+## 🔧 Dependencies
+
+- **FastAPI** - Web framework
+- **PyPDF2** - PDF text extraction
+- **Tesseract** - OCR for scanned PDFs
+- **spaCy** - NLP processing
+- **scikit-learn** - ML models
+- **XGBoost** - Classification

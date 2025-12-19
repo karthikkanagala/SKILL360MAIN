@@ -4,6 +4,13 @@ python-multipart==0.0.6
 pydantic==2.5.0
 python-dotenv==1.0.0
 
+# Database
+pymongo
+motor
+
+# Google Generative AI (Gemini)
+google-generativeai
+
 # Dependencies required by Evolvex-AI modules imported by the FastAPI routers
 streamlit
 requests
@@ -19,3 +26,8 @@ xgboost
 joblib
 reportlab
 spacy
+
+# OCR for scanned PDFs
+pytesseract
+pdf2image
+Pillow
