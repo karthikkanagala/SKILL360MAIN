@@ -75,22 +75,75 @@ TECH_SKILLS = [
 def extract_skills(text: str) -> List[str]:
     """
     Extract skills from text using word boundary matching
+    Special handling for single-letter languages (R, C) to prevent false positives
     Returns properly capitalized skill names
     """
     found = set()
     text_lower = text.lower()
     
+    # Single-letter skills that need special context handling
+    single_letter_skills = {'R', 'C'}
+    
+    # Context patterns for single-letter languages
+    # R language context: "R programming", "R language", "R studio", "statistical R", etc.
+    r_patterns = [
+        r'\bR\s+programming\b',
+        r'\bR\s+language\b',
+        r'\bR\s+studio\b',
+        r'\bRstudio\b',
+        r'\bstatistical\s+R\b',
+        r'\bR\s+for\s+data\b',
+        r'\bR\s+shiny\b',
+        r'\bggplot\b',  # R-specific library
+        r'\bdplyr\b',   # R-specific library
+        r'\btidyverse\b',  # R-specific
+        r'\bR\s*,',     # "R, Python" pattern
+        r',\s*R\b',     # "Python, R" pattern
+        r'\bR\s+and\s+python\b',
+        r'\bpython\s+and\s+R\b',
+        r'\bR\s*/\s*python\b',
+        r'\bR\b(?=\s*\()',  # R followed by parenthesis like "R (data science)"
+    ]
+    
+    # C language context (but not C++, C#)
+    c_patterns = [
+        r'\bC\s+programming\b',
+        r'\bC\s+language\b',
+        r'\bANSI\s+C\b',
+        r'\bC\s*,(?!\s*[+#])',  # "C, Python" but not "C++" or "C#"
+        r',\s*C\b(?!\s*[+#])',  # "Python, C" but not "C++" or "C#"
+        r'\bC\s+and\s+',
+        r'\sand\s+C\b(?!\s*[+#])',
+        r'\bpure\s+C\b',
+        r'\bC\s*/\s*C\+\+',  # "C/C++" pattern
+    ]
+    
     for skill in TECH_SKILLS:
-        # Create pattern with word boundaries
-        escaped = re.escape(skill.lower())
-        # Handle special cases like C++ and C#
-        if skill in ['C++', 'C#', 'C']:
-            pattern = r'\b' + escaped
+        if skill in single_letter_skills:
+            # Special handling for R
+            if skill == 'R':
+                for pattern in r_patterns:
+                    if re.search(pattern, text, re.IGNORECASE):
+                        found.add('R')
+                        break
+            # Special handling for C
+            elif skill == 'C':
+                for pattern in c_patterns:
+                    if re.search(pattern, text, re.IGNORECASE):
+                        found.add('C')
+                        break
         else:
-            pattern = r'\b' + escaped + r'\b'
-        
-        if re.search(pattern, text_lower):
-            found.add(skill)
+            # Regular skill matching with word boundaries
+            escaped = re.escape(skill.lower())
+            
+            # Handle C++ and C# (no trailing word boundary needed due to special chars)
+            if skill in ['C++', 'C#']:
+                pattern = r'\b' + escaped
+            else:
+                pattern = r'\b' + escaped + r'\b'
+            
+            if re.search(pattern, text_lower):
+                found.add(skill)
     
     # Remove duplicates with different cases (keep proper casing)
     skill_map = {}
