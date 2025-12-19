@@ -1,10 +1,10 @@
 """
 GitHub Repository Analyzer
 Analyzes public GitHub profiles and repositories to generate contribution scores
+Includes commit history and activity analysis
 """
 import requests
-import streamlit as st
-from datetime import datetime
+from datetime import datetime, timedelta
 from collections import Counter
 
 class GitHubAnalyzer:
@@ -70,9 +70,124 @@ class GitHubAnalyzer:
         except Exception:
             return None
     
+    def get_user_events(self, username, max_events=100):
+        """
+        Fetch user's recent events (commits, pushes, etc.)
+        Returns: list of events or empty list
+        """
+        try:
+            url = f"{self.base_url}/users/{username}/events/public"
+            params = {'per_page': max_events}
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            return []
+            
+        except Exception:
+            return []
+    
+    def get_repo_commits(self, username, repo_name, max_commits=30):
+        """
+        Fetch commits for a specific repository
+        Returns: list of commits or empty list
+        """
+        try:
+            url = f"{self.base_url}/repos/{username}/{repo_name}/commits"
+            params = {'per_page': max_commits, 'author': username}
+            response = requests.get(url, params=params, timeout=10)
+            
+            if response.status_code == 200:
+                return response.json()
+            return []
+            
+        except Exception:
+            return []
+    
+    def analyze_commits(self, username, repos):
+        """
+        Analyze commit activity across repositories
+        Returns: dict with commit statistics
+        """
+        total_commits = 0
+        recent_commits = 0
+        commits_by_repo = []
+        commit_dates = []
+        
+        # Get commits from top 10 repos
+        for repo in repos[:10]:
+            repo_name = repo.get('name', '')
+            commits = self.get_repo_commits(username, repo_name, max_commits=50)
+            
+            repo_commit_count = len(commits)
+            total_commits += repo_commit_count
+            
+            if repo_commit_count > 0:
+                commits_by_repo.append({
+                    'repo': repo_name,
+                    'commits': repo_commit_count,
+                    'latest': commits[0].get('commit', {}).get('author', {}).get('date', '') if commits else ''
+                })
+            
+            # Count recent commits (last 30 days)
+            for commit in commits:
+                try:
+                    date_str = commit.get('commit', {}).get('author', {}).get('date', '')
+                    if date_str:
+                        commit_date = datetime.strptime(date_str, '%Y-%m-%dT%H:%M:%SZ')
+                        commit_dates.append(commit_date)
+                        if (datetime.now() - commit_date).days <= 30:
+                            recent_commits += 1
+                except:
+                    pass
+        
+        # Analyze events for additional commit info
+        events = self.get_user_events(username)
+        push_events = [e for e in events if e.get('type') == 'PushEvent']
+        
+        for event in push_events:
+            payload = event.get('payload', {})
+            commits_in_push = payload.get('commits', [])
+            # Add to total if not already counted
+            # (Events API shows more recent activity)
+        
+        # Calculate commit frequency
+        if commit_dates:
+            min_date = min(commit_dates)
+            max_date = max(commit_dates)
+            days_range = max(1, (max_date - min_date).days)
+            commits_per_week = (len(commit_dates) / days_range) * 7
+        else:
+            commits_per_week = 0
+        
+        # Sort by commit count
+        commits_by_repo.sort(key=lambda x: x['commits'], reverse=True)
+        
+        return {
+            'total_commits': total_commits,
+            'recent_commits_30_days': recent_commits,
+            'commits_per_week': round(commits_per_week, 1),
+            'push_events': len(push_events),
+            'top_repos_by_commits': commits_by_repo[:5],
+            'activity_summary': self._get_activity_summary(recent_commits, total_commits)
+        }
+    
+    def _get_activity_summary(self, recent, total):
+        """Generate activity summary text"""
+        if recent >= 20:
+            return "Very Active - Committing frequently"
+        elif recent >= 10:
+            return "Active - Regular contributions"
+        elif recent >= 5:
+            return "Moderately Active - Some recent activity"
+        elif recent > 0:
+            return "Occasional - Few recent commits"
+        else:
+            return "Inactive - No recent commits"
+    
     def analyze_profile(self, username):
         """
-        Complete profile analysis
+        Complete profile analysis including commits
         Returns: comprehensive analysis dict
         """
         # Get profile
@@ -115,12 +230,16 @@ class GitHubAnalyzer:
         # Find top repositories
         top_repos = sorted(repos, key=lambda x: x.get('stargazers_count', 0), reverse=True)[:5]
         
+        # Analyze commits
+        commit_analysis = self.analyze_commits(username, repos)
+        
         # Calculate contribution score (0-100)
         contribution_score = self._calculate_contribution_score(
             profile=profile,
             repos=repos,
             total_stars=total_stars,
-            languages_count=len(all_languages)
+            languages_count=len(all_languages),
+            commits=commit_analysis.get('total_commits', 0)
         )
         
         # Calculate activity level
@@ -148,6 +267,7 @@ class GitHubAnalyzer:
                 'total_watchers': total_watchers,
                 'languages_count': len(all_languages)
             },
+            'commits': commit_analysis,
             'languages': language_breakdown,
             'top_repos': [
                 {
@@ -165,28 +285,31 @@ class GitHubAnalyzer:
             'account_age_days': self._calculate_account_age(profile.get('created_at', ''))
         }
     
-    def _calculate_contribution_score(self, profile, repos, total_stars, languages_count):
+    def _calculate_contribution_score(self, profile, repos, total_stars, languages_count, commits=0):
         """Calculate contribution score (0-100)"""
         score = 0
         
-        # Number of repositories (max 30 points)
+        # Number of repositories (max 25 points)
         repo_count = len(repos)
-        score += min(30, repo_count * 1.5)
+        score += min(25, repo_count * 1.5)
         
-        # Stars received (max 25 points)
-        score += min(25, total_stars * 0.5)
+        # Stars received (max 20 points)
+        score += min(20, total_stars * 0.5)
         
         # Followers (max 15 points)
         followers = profile.get('followers', 0)
         score += min(15, followers * 0.3)
         
-        # Language diversity (max 15 points)
-        score += min(15, languages_count * 2)
+        # Language diversity (max 10 points)
+        score += min(10, languages_count * 1.5)
         
-        # Account age bonus (max 15 points)
+        # Commit activity (max 20 points)
+        score += min(20, commits * 0.2)
+        
+        # Account age bonus (max 10 points)
         account_age_days = self._calculate_account_age(profile.get('created_at', ''))
         years = account_age_days / 365
-        score += min(15, years * 3)
+        score += min(10, years * 2)
         
         return min(100, round(score))
     
@@ -225,8 +348,8 @@ class GitHubAnalyzer:
             return 'Less Active'
 
 
-@st.cache_data(ttl=3600)  # Cache for 1 hour
+# Remove streamlit dependency for FastAPI usage
 def analyze_github_profile(username):
-    """Cached function to analyze GitHub profile"""
+    """Function to analyze GitHub profile"""
     analyzer = GitHubAnalyzer()
     return analyzer.analyze_profile(username)
