@@ -103,6 +103,7 @@ class GoogleAPI:
     
     _model = None
     _api_key = None
+    _model_name = "gemini-1.5-flash"  # Updated default model
     
     @classmethod
     def get_api_key(cls) -> Optional[str]:
@@ -112,8 +113,10 @@ class GoogleAPI:
         return cls._api_key
     
     @classmethod
-    def get_model(cls, model_name: str = "gemini-pro"):
+    def get_model(cls, model_name: str = None):
         """Get Gemini model instance"""
+        model_name = model_name or cls._model_name
+        
         if cls._model is None:
             try:
                 import google.generativeai as genai
@@ -124,8 +127,30 @@ class GoogleAPI:
                     return None
                 
                 genai.configure(api_key=api_key)
-                cls._model = genai.GenerativeModel(model_name)
-                print(f"✅ Google Generative AI ({model_name}) initialized!")
+                
+                # Try different model names
+                models_to_try = [
+                    model_name,
+                    "gemini-1.5-flash",
+                    "gemini-1.5-pro",
+                    "gemini-pro",
+                    "models/gemini-1.5-flash",
+                ]
+                
+                for m_name in models_to_try:
+                    try:
+                        cls._model = genai.GenerativeModel(m_name)
+                        # Quick test
+                        test_response = cls._model.generate_content("Hi")
+                        if test_response:
+                            print(f"✅ Google Generative AI ({m_name}) initialized!")
+                            cls._model_name = m_name
+                            return cls._model
+                    except Exception as e:
+                        continue
+                
+                print(f"❌ Could not initialize any Gemini model")
+                cls._model = None
                 
             except Exception as e:
                 print(f"❌ Google API initialization failed: {e}")
@@ -134,18 +159,31 @@ class GoogleAPI:
         return cls._model
     
     @classmethod
-    def generate_content(cls, prompt: str, model_name: str = "gemini-pro") -> Optional[str]:
-        """Generate content using Gemini"""
+    def generate_content(cls, prompt: str, model_name: str = None) -> Optional[str]:
+        """Generate content using Gemini with retry logic"""
         model = cls.get_model(model_name)
         if model is None:
             return None
         
-        try:
-            response = model.generate_content(prompt)
-            return response.text
-        except Exception as e:
-            print(f"Error generating content: {e}")
-            return None
+        import time
+        max_retries = 3
+        
+        for attempt in range(max_retries):
+            try:
+                response = model.generate_content(prompt)
+                if response and response.text:
+                    return response.text
+                return None
+            except Exception as e:
+                error_str = str(e).lower()
+                if "quota" in error_str or "rate" in error_str:
+                    if attempt < max_retries - 1:
+                        time.sleep(2 ** attempt)  # Exponential backoff
+                        continue
+                print(f"Error generating content: {e}")
+                return None
+        
+        return None
 
 
 # ==================== Database Collections ====================
