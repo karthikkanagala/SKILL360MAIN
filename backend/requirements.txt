@@ -1,0 +1,21 @@
+fastapi==0.104.1
+uvicorn[standard]==0.24.0
+python-multipart==0.0.6
+pydantic==2.5.0
+python-dotenv==1.0.0
+
+# Dependencies required by Evolvex-AI modules imported by the FastAPI routers
+streamlit
+requests
+PyPDF2
+python-docx
+beautifulsoup4
+lxml
+html5lib
+pandas
+numpy
+scikit-learn
+xgboost
+joblib
+reportlab
+spacy
