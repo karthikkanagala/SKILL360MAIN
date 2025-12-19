@@ -160,9 +160,9 @@ def analyze_tech_diversity(repos: List[Dict]) -> Dict:
         
         # Detect frameworks from name, description, topics
         text = ' '.join([
-            repo.get('name', ''),
-            repo.get('description', ''),
-            ' '.join(repo.get('topics', []))
+            repo.get('name') or '',
+            repo.get('description') or '',
+            ' '.join(repo.get('topics') or [])
         ]).lower()
         
         for keyword, framework in framework_keywords.items():
@@ -224,9 +224,9 @@ def analyze_project_types(repos: List[Dict]) -> Dict:
     
     for repo in repos:
         text = ' '.join([
-            repo.get('name', ''),
-            repo.get('description', ''),
-            ' '.join(repo.get('topics', []))
+            repo.get('name') or '',
+            repo.get('description') or '',
+            ' '.join(repo.get('topics') or [])
         ]).lower()
         
         categorized = False
@@ -307,31 +307,48 @@ async def analyze_portfolio_deep(request: PortfolioAnalysisRequest):
     Deep portfolio analysis - not just counts, but quality and depth
     """
     try:
-        # Get GitHub data
-        analyzer = GitHubAnalyzer()
-        profile = analyzer.get_user_profile(request.username)
+        # Get GitHub data directly using requests
+        base_url = "https://api.github.com"
         
-        if profile and 'error' in profile:
-            raise HTTPException(status_code=404, detail=profile.get('message', 'User not found'))
+        # Get profile
+        profile_resp = requests.get(f"{base_url}/users/{request.username}", timeout=10)
+        if profile_resp.status_code == 404:
+            raise HTTPException(status_code=404, detail="GitHub user not found")
+        profile = profile_resp.json() if profile_resp.status_code == 200 else {}
         
-        repos = analyzer.get_user_repos(request.username)
+        # Get repos
+        repos_resp = requests.get(f"{base_url}/users/{request.username}/repos", 
+                                  params={'per_page': 100, 'sort': 'updated'}, timeout=10)
+        repos = repos_resp.json() if repos_resp.status_code == 200 else []
         
         if not repos:
             raise HTTPException(status_code=404, detail="No repositories found")
+
         
         # Filter out forks for quality analysis
         original_repos = [r for r in repos if not r.get('fork', False)]
         
+        # If no original repos, use all repos
+        if not original_repos:
+            original_repos = repos
+        
         # Analyze each repo quality
-        repo_analyses = [analyze_repo_quality(repo) for repo in original_repos[:20]]
+        repo_analyses = []
+        for repo in original_repos[:20]:
+            try:
+                analysis = analyze_repo_quality(repo)
+                repo_analyses.append(analysis)
+            except Exception as e:
+                print(f"Error analyzing repo {repo.get('name')}: {e}")
+                continue
         
         # Sort by quality score
-        repo_analyses.sort(key=lambda x: x['quality_score'], reverse=True)
+        repo_analyses.sort(key=lambda x: x.get('quality_score', 0), reverse=True)
         
         # Calculate overall portfolio score
         if repo_analyses:
-            avg_quality = sum(r['quality_score'] for r in repo_analyses) / len(repo_analyses)
-            top_projects = [r for r in repo_analyses if r['tier'] in ['Excellent', 'Good']]
+            avg_quality = sum(r.get('quality_score', 0) for r in repo_analyses) / len(repo_analyses)
+            top_projects = [r for r in repo_analyses if r.get('tier') in ['Excellent', 'Good']]
         else:
             avg_quality = 0
             top_projects = []
@@ -374,7 +391,7 @@ async def analyze_portfolio_deep(request: PortfolioAnalysisRequest):
                 "average_project_quality": round(avg_quality, 1)
             },
             "best_projects": repo_analyses[:5],
-            "projects_needing_improvement": [r for r in repo_analyses if r['tier'] in ['Basic', 'Average']][:3],
+            "projects_needing_improvement": [r for r in repo_analyses if r.get('tier') in ['Basic', 'Average']][:3],
             "tech_diversity": tech_diversity,
             "project_categories": project_types,
             "recommendations": generate_portfolio_recommendations(
