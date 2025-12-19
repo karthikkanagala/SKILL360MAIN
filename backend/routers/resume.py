@@ -12,33 +12,14 @@ import re
 # Add src directory to path
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Evolvex-AI-Carrier-Path-main/src')))
 
+# Try to import from skills.py, use comprehensive fallback if not available
 try:
     from parsing import extract_text_from_pdf, extract_text_from_docx, extract_text_from_txt
-    from skills import extract_skills
+    from skills import extract_skills as _extract_skills
+    SKILLS_MODULE_AVAILABLE = True
 except ImportError as e:
     print(f"Warning: Could not import modules: {e}")
-    def extract_skills(text):
-        """Fallback skill extractor with word-boundary matching to avoid substring false-positives."""
-        tech_skills = [
-            'Python', 'Java', 'JavaScript', 'TypeScript', 'C++', 'C#', 'Ruby', 'Go', 'Rust', 'Swift', 'Kotlin',
-            'React', 'Angular', 'Vue', 'Node.js', 'Django', 'Flask', 'FastAPI', 'Spring', 'Express',
-            'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'Jenkins', 'Git', 'CI/CD',
-            'Machine Learning', 'Deep Learning', 'AI', 'TensorFlow', 'PyTorch',
-            'SQL', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis',
-            'HTML', 'CSS', 'REST API', 'GraphQL', 'Microservices'
-        ]
-        found = set()
-        text_lower = text.lower()
-        import re
-
-        for skill in tech_skills:
-            # Use regex with word boundaries to prevent matching substrings inside other words
-            escaped = re.escape(skill.lower())
-            pattern = r"\b" + escaped + r"\b"
-            if re.search(pattern, text_lower):
-                found.add(skill)
-
-        return sorted(found, key=str.lower)
+    SKILLS_MODULE_AVAILABLE = False
 
 # Import Gemini
 try:
@@ -48,6 +29,123 @@ except ImportError:
     GEMINI_AVAILABLE = False
 
 router = APIRouter()
+
+# Comprehensive skills list
+TECH_SKILLS = [
+    # Programming Languages
+    'Python', 'Java', 'JavaScript', 'TypeScript', 'C++', 'C#', 'C', 'Ruby', 'Go', 'Golang', 'Rust', 'Swift', 'Kotlin', 
+    'PHP', 'Perl', 'R', 'MATLAB', 'Scala', 'Dart', 'Lua', 'Haskell', 'Elixir', 'Clojure', 'F#', 'Objective-C',
+    # Web Frontend
+    'HTML', 'HTML5', 'CSS', 'CSS3', 'SASS', 'SCSS', 'LESS', 'React', 'ReactJS', 'React.js', 'Angular', 'AngularJS', 
+    'Vue', 'Vue.js', 'VueJS', 'Svelte', 'Next.js', 'NextJS', 'Nuxt.js', 'Gatsby', 'jQuery', 'Bootstrap', 
+    'Tailwind', 'TailwindCSS', 'Material UI', 'Material-UI', 'Redux', 'Zustand', 'MobX',
+    # Web Backend
+    'Node.js', 'NodeJS', 'Express', 'Express.js', 'Django', 'Flask', 'FastAPI', 'Spring', 'Spring Boot', 'SpringBoot',
+    'Laravel', 'Rails', 'Ruby on Rails', 'ASP.NET', '.NET', 'NestJS', 'Koa', 'Hapi', 'Fiber', 'Gin', 'Echo',
+    # Databases
+    'SQL', 'MySQL', 'PostgreSQL', 'Postgres', 'SQLite', 'Oracle', 'SQL Server', 'MSSQL', 'MongoDB', 'NoSQL',
+    'Redis', 'Cassandra', 'DynamoDB', 'Firebase', 'Firestore', 'Elasticsearch', 'Neo4j', 'MariaDB', 'CouchDB',
+    # Cloud & DevOps
+    'AWS', 'Amazon Web Services', 'Azure', 'Microsoft Azure', 'GCP', 'Google Cloud', 'Cloud Computing',
+    'Docker', 'Kubernetes', 'K8s', 'Terraform', 'Ansible', 'Jenkins', 'CI/CD', 'GitHub Actions', 'GitLab CI',
+    'CircleCI', 'Travis CI', 'ArgoCD', 'Helm', 'Prometheus', 'Grafana', 'ELK', 'Nginx', 'Apache',
+    # Data & ML/AI
+    'Machine Learning', 'ML', 'Deep Learning', 'DL', 'Artificial Intelligence', 'AI', 'Data Science', 
+    'Data Analysis', 'Data Analytics', 'Data Engineering', 'Big Data', 'NLP', 'Natural Language Processing',
+    'Computer Vision', 'Neural Networks', 'TensorFlow', 'PyTorch', 'Keras', 'Scikit-learn', 'Sklearn',
+    'Pandas', 'NumPy', 'SciPy', 'Matplotlib', 'Seaborn', 'OpenCV', 'NLTK', 'SpaCy', 'Hugging Face',
+    'XGBoost', 'LightGBM', 'Random Forest', 'SVM', 'Regression', 'Classification', 'Clustering',
+    # LLM & Generative AI
+    'LLM', 'Large Language Models', 'GPT', 'ChatGPT', 'OpenAI', 'LangChain', 'RAG', 'Prompt Engineering',
+    'Gemini', 'Claude', 'BERT', 'Transformers', 'Fine-tuning', 'Vector Database', 'Embeddings',
+    # Mobile
+    'Android', 'iOS', 'React Native', 'Flutter', 'Kotlin', 'Swift', 'Xamarin', 'Mobile Development',
+    'Mobile App', 'SwiftUI', 'Jetpack Compose',
+    # Tools & Practices
+    'Git', 'GitHub', 'GitLab', 'Bitbucket', 'SVN', 'Jira', 'Confluence', 'Slack', 'VS Code', 'IntelliJ',
+    'Postman', 'Swagger', 'OpenAPI', 'REST', 'REST API', 'RESTful', 'GraphQL', 'gRPC', 'WebSocket', 'API',
+    'Microservices', 'Monolith', 'MVC', 'MVVM', 'Design Patterns', 'SOLID', 'OOP', 'Functional Programming',
+    'TDD', 'BDD', 'Unit Testing', 'Integration Testing', 'Selenium', 'Cypress', 'Jest', 'Mocha', 'PyTest',
+    'Agile', 'Scrum', 'Kanban', 'DevOps', 'SRE', 'Linux', 'Unix', 'Bash', 'Shell', 'PowerShell',
+    # Soft Skills
+    'Leadership', 'Communication', 'Problem Solving', 'Teamwork', 'Project Management', 'Time Management',
+]
+
+
+def extract_skills(text: str) -> List[str]:
+    """
+    Extract skills from text using word boundary matching
+    Returns properly capitalized skill names
+    """
+    found = set()
+    text_lower = text.lower()
+    
+    for skill in TECH_SKILLS:
+        # Create pattern with word boundaries
+        escaped = re.escape(skill.lower())
+        # Handle special cases like C++ and C#
+        if skill in ['C++', 'C#', 'C']:
+            pattern = r'\b' + escaped
+        else:
+            pattern = r'\b' + escaped + r'\b'
+        
+        if re.search(pattern, text_lower):
+            found.add(skill)
+    
+    # Remove duplicates with different cases (keep proper casing)
+    skill_map = {}
+    for skill in found:
+        key = skill.lower().replace('.', '').replace('-', '').replace(' ', '')
+        if key not in skill_map or len(skill) > len(skill_map[key]):
+            skill_map[key] = skill
+    
+    return sorted(skill_map.values(), key=str.lower)
+
+
+async def gemini_extract_skills(text: str) -> List[str]:
+    """Use Gemini to extract skills from resume text"""
+    if not GEMINI_AVAILABLE:
+        return []
+    
+    try:
+        prompt = f"""Extract all technical and professional skills from this resume text.
+        
+Resume text:
+{text[:3000]}
+
+Return ONLY a JSON array of skill names, like: ["Python", "React", "AWS", "Machine Learning"]
+No explanations, just the array. Include:
+- Programming languages
+- Frameworks and libraries
+- Tools and platforms
+- Cloud services
+- Databases
+- Methodologies
+- Soft skills mentioned"""
+        
+        response = GoogleAPI.generate_content(prompt)
+        if response:
+            # Clean and parse response
+            response = response.strip()
+            if response.startswith("```"):
+                response = response.split("```")[1]
+                if response.startswith("json"):
+                    response = response[4:]
+            response = response.strip()
+            
+            import json
+            try:
+                skills = json.loads(response)
+                if isinstance(skills, list):
+                    return [s for s in skills if isinstance(s, str)]
+            except:
+                pass
+        return []
+    except Exception as e:
+        print(f"Gemini skill extraction failed: {e}")
+        return []
+
+
 
 
 # ==================== Pydantic Models ====================
@@ -310,8 +408,20 @@ async def upload_resume(file: UploadFile = File(...)):
                 detail="Could not extract text from resume. If this is a scanned PDF, please try uploading a text-based PDF or DOCX file."
             )
         
-        skills = extract_skills(text)
-        skills_list = list(skills) if isinstance(skills, set) else skills
+        # Extract skills using pattern matching
+        pattern_skills = extract_skills(text)
+        
+        # Also try Gemini for more comprehensive extraction
+        gemini_skills = await gemini_extract_skills(text)
+        
+        # Combine both (unique skills)
+        all_skills = set(pattern_skills)
+        for skill in gemini_skills:
+            # Only add if not already present (case-insensitive check)
+            if skill.lower() not in [s.lower() for s in all_skills]:
+                all_skills.add(skill)
+        
+        skills_list = sorted(list(all_skills), key=str.lower)
         
         ats_result = calculate_ats_score(text, skills_list)
         improvements = generate_improvements(text, ats_result)
@@ -338,8 +448,19 @@ async def analyze_resume_text(request: ResumeTextRequest):
         if not text or len(text.strip()) < 10:
             raise HTTPException(status_code=400, detail="Resume text is too short")
 
-        skills = extract_skills(text)
-        skills_list = list(skills) if isinstance(skills, set) else skills
+        # Extract skills using pattern matching
+        pattern_skills = extract_skills(text)
+        
+        # Also try Gemini for more comprehensive extraction
+        gemini_skills = await gemini_extract_skills(text)
+        
+        # Combine both (unique skills)
+        all_skills = set(pattern_skills)
+        for skill in gemini_skills:
+            if skill.lower() not in [s.lower() for s in all_skills]:
+                all_skills.add(skill)
+        
+        skills_list = sorted(list(all_skills), key=str.lower)
         
         ats_result = calculate_ats_score(text, skills_list, request.job_description or "")
         improvements = generate_improvements(text, ats_result, request.job_description or "")
