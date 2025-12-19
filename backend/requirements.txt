@@ -31,3 +31,6 @@ spacy
 pytesseract
 pdf2image
 Pillow
+
+# HTTP client for API calls
+httpx

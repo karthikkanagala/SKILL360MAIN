@@ -1,7 +1,7 @@
 """
-Internship Matching Router - Enhanced with Gemini AI
+Internship Matching Router - Enhanced with RapidAPI and Gemini AI
 Handles internship matching, recommendations, and skill analysis
-Uses Gemini for intelligent matching and personalized recommendations
+Uses RapidAPI for real internship data and Gemini for intelligent matching
 """
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
@@ -9,8 +9,17 @@ from typing import List, Dict, Optional
 import sys
 import os
 import json
+import httpx
+from dotenv import load_dotenv
+
+load_dotenv()
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '../Evolvex-AI-Carrier-Path-main/src')))
+
+# RapidAPI Configuration
+RAPIDAPI_KEY = os.getenv("RAPIDAPI_KEY", "")
+RAPIDAPI_HOST = os.getenv("RAPIDAPI_HOST", "internships-api.p.rapidapi.com")
+RAPIDAPI_AVAILABLE = bool(RAPIDAPI_KEY and RAPIDAPI_KEY != "your_rapidapi_key_here")
 
 # Import Gemini
 try:
@@ -21,122 +30,65 @@ except ImportError:
 
 router = APIRouter()
 
+# ==================== Sample Internship Database (Fallback) ====================
 
-# ==================== Sample Internship Database ====================
-
-INTERNSHIPS_DB = [
+SAMPLE_INTERNSHIPS = [
     {
-        "id": "1",
+        "id": "sample-1",
         "title": "Software Engineering Intern",
         "company": "Google",
         "location": "Remote / Bangalore",
         "skills_required": ["Python", "Java", "Data Structures", "Algorithms"],
         "duration": "3 months",
         "stipend": "₹80,000/month",
-        "description": "Work on core Google products with experienced engineers. Build scalable systems and learn from world-class engineers.",
+        "description": "Work on core Google products with experienced engineers.",
         "apply_link": "https://careers.google.com/students"
     },
     {
-        "id": "2",
+        "id": "sample-2",
         "title": "ML/AI Intern",
         "company": "Microsoft",
         "location": "Hyderabad",
         "skills_required": ["Python", "Machine Learning", "TensorFlow", "PyTorch"],
         "duration": "6 months",
         "stipend": "₹60,000/month",
-        "description": "Build AI-powered features for Azure services. Work on cutting-edge machine learning projects.",
+        "description": "Build AI-powered features for Azure services.",
         "apply_link": "https://careers.microsoft.com"
     },
     {
-        "id": "3",
+        "id": "sample-3",
         "title": "Full Stack Developer Intern",
         "company": "Amazon",
         "location": "Remote",
         "skills_required": ["React", "Node.js", "AWS", "JavaScript"],
         "duration": "3 months",
         "stipend": "₹70,000/month",
-        "description": "Build scalable web applications on AWS. Learn about distributed systems at scale.",
+        "description": "Build scalable web applications on AWS.",
         "apply_link": "https://amazon.jobs/students"
     },
     {
-        "id": "4",
+        "id": "sample-4",
         "title": "Data Science Intern",
         "company": "Flipkart",
         "location": "Bangalore",
         "skills_required": ["Python", "SQL", "Machine Learning", "pandas"],
         "duration": "4 months",
         "stipend": "₹50,000/month",
-        "description": "Analyze customer data and build recommendation systems for millions of users.",
+        "description": "Analyze customer data and build recommendation systems.",
         "apply_link": "https://flipkartcareers.com"
     },
     {
-        "id": "5",
+        "id": "sample-5",
         "title": "DevOps Intern",
         "company": "Razorpay",
         "location": "Bangalore",
         "skills_required": ["Docker", "Kubernetes", "AWS", "Linux", "CI/CD"],
         "duration": "6 months",
         "stipend": "₹45,000/month",
-        "description": "Automate infrastructure and deployment pipelines for India's leading payment gateway.",
+        "description": "Automate infrastructure and deployment pipelines.",
         "apply_link": "https://razorpay.com/careers"
     },
-    {
-        "id": "6",
-        "title": "Backend Developer Intern",
-        "company": "Swiggy",
-        "location": "Remote",
-        "skills_required": ["Python", "Django", "PostgreSQL", "REST API"],
-        "duration": "3 months",
-        "stipend": "₹40,000/month",
-        "description": "Build backend services for food delivery platform serving millions of orders.",
-        "apply_link": "https://careers.swiggy.com"
-    },
-    {
-        "id": "7",
-        "title": "Frontend Developer Intern",
-        "company": "Zomato",
-        "location": "Gurugram",
-        "skills_required": ["React", "TypeScript", "CSS", "JavaScript"],
-        "duration": "3 months",
-        "stipend": "₹35,000/month",
-        "description": "Create beautiful and responsive user interfaces for restaurant discovery app.",
-        "apply_link": "https://zomato.com/careers"
-    },
-    {
-        "id": "8",
-        "title": "Mobile App Developer Intern",
-        "company": "Paytm",
-        "location": "Noida",
-        "skills_required": ["React Native", "JavaScript", "Mobile Development"],
-        "duration": "4 months",
-        "stipend": "₹40,000/month",
-        "description": "Build features for Paytm mobile applications used by 300+ million users.",
-        "apply_link": "https://paytm.com/careers"
-    },
-    {
-        "id": "9",
-        "title": "Cloud Engineering Intern",
-        "company": "Infosys",
-        "location": "Pune / Remote",
-        "skills_required": ["AWS", "Azure", "Python", "Terraform"],
-        "duration": "6 months",
-        "stipend": "₹25,000/month",
-        "description": "Work on cloud migration projects for Fortune 500 clients.",
-        "apply_link": "https://infosys.com/careers"
-    },
-    {
-        "id": "10",
-        "title": "Cybersecurity Intern",
-        "company": "TCS",
-        "location": "Mumbai",
-        "skills_required": ["Cybersecurity", "Python", "Networking", "Linux"],
-        "duration": "6 months",
-        "stipend": "₹30,000/month",
-        "description": "Learn about security operations and vulnerability assessment.",
-        "apply_link": "https://tcs.com/careers"
-    },
 ]
-
 
 # ==================== Pydantic Models ====================
 
@@ -147,6 +99,7 @@ class InternshipMatchRequest(BaseModel):
     location: Optional[str] = None
     experience_level: Optional[str] = "beginner"
     resume_text: Optional[str] = None
+    search_query: Optional[str] = None  # For API search
 
 
 class InternshipMatchResponse(BaseModel):
@@ -157,233 +110,250 @@ class InternshipMatchResponse(BaseModel):
     match_score: int
     matched_skills: List[str]
     missing_skills: List[str]
-    stipend: str
-    duration: str
+    stipend: Optional[str] = None
+    duration: Optional[str] = None
     apply_link: str
+    description: Optional[str] = None
     recommendation: Optional[str] = None
     ai_match_reason: Optional[str] = None
+    source: str = "sample"  # "rapidapi" or "sample"
+
+
+class InternshipSearchRequest(BaseModel):
+    query: str
+    location: Optional[str] = "India"
+    page: Optional[int] = 1
+
+
+# ==================== RapidAPI Functions ====================
+
+async def fetch_internships_from_rapidapi(query: str, location: str = "India", page: int = 1) -> List[Dict]:
+    """Fetch internships from RapidAPI"""
+    if not RAPIDAPI_AVAILABLE:
+        print("RapidAPI not configured")
+        return []
+    
+    try:
+        url = "https://internships-api.p.rapidapi.com/active-jb-7d"
+        
+        params = {
+            "title_filter": f'"{query}"',
+            "location_filter": f'"{location}"',
+            "page": str(page)
+        }
+        
+        headers = {
+            "X-RapidAPI-Key": RAPIDAPI_KEY,
+            "X-RapidAPI-Host": RAPIDAPI_HOST
+        }
+        
+        async with httpx.AsyncClient() as client:
+            response = await client.get(url, headers=headers, params=params, timeout=30)
+            
+            if response.status_code == 200:
+                data = response.json()
+                jobs = data if isinstance(data, list) else data.get("jobs", data.get("data", []))
+                return jobs[:20]  # Limit to 20 results
+            else:
+                print(f"RapidAPI error: {response.status_code}")
+                return []
+                
+    except Exception as e:
+        print(f"RapidAPI fetch failed: {e}")
+        return []
+
+
+def parse_rapidapi_internship(job: Dict, idx: int) -> Dict:
+    """Parse RapidAPI job data into our format"""
+    return {
+        "id": f"rapidapi-{idx}-{job.get('id', '')}",
+        "title": job.get("title", "Internship"),
+        "company": job.get("company_name", job.get("company", "Unknown")),
+        "location": job.get("location", job.get("city", "Remote")),
+        "skills_required": extract_skills_from_description(job.get("description", "")),
+        "duration": job.get("employment_type", "Internship"),
+        "stipend": job.get("salary_string", job.get("salary", "Competitive")),
+        "description": job.get("description", "")[:500],
+        "apply_link": job.get("url", job.get("apply_url", "#")),
+        "source": "rapidapi"
+    }
+
+
+def extract_skills_from_description(description: str) -> List[str]:
+    """Extract skills from job description"""
+    import re
+    
+    skills_list = [
+        'Python', 'Java', 'JavaScript', 'TypeScript', 'C++', 'C#', 'Go', 'Rust', 'Ruby',
+        'React', 'Angular', 'Vue', 'Node.js', 'Django', 'Flask', 'FastAPI', 'Spring',
+        'AWS', 'Azure', 'GCP', 'Docker', 'Kubernetes', 'Jenkins', 'Git', 'CI/CD',
+        'Machine Learning', 'Deep Learning', 'AI', 'TensorFlow', 'PyTorch', 'NLP',
+        'SQL', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis', 'Elasticsearch',
+        'HTML', 'CSS', 'REST API', 'GraphQL', 'Microservices', 'Agile', 'Scrum'
+    ]
+    
+    found = []
+    desc_lower = description.lower()
+    
+    for skill in skills_list:
+        pattern = r'\b' + re.escape(skill.lower()) + r'\b'
+        if re.search(pattern, desc_lower):
+            found.append(skill)
+    
+    return found[:10]  # Limit to 10 skills
 
 
 # ==================== Gemini AI Functions ====================
 
-async def gemini_calculate_match_scores(user_skills: List[str], internships: List[Dict], resume_text: Optional[str] = None) -> List[Dict]:
+async def gemini_calculate_match_scores(user_skills: List[str], internships: List[Dict]) -> List[Dict]:
     """Use Gemini to calculate intelligent match scores"""
-    if not GEMINI_AVAILABLE:
+    if not GEMINI_AVAILABLE or not internships:
         return None
     
     try:
-        # Prepare internship data for AI
-        internship_summaries = []
-        for i, internship in enumerate(internships):
-            internship_summaries.append(
-                f"{i+1}. {internship['title']} at {internship['company']}: requires {', '.join(internship['skills_required'])}"
-            )
+        internship_summaries = [
+            f"{i+1}. {intern.get('title', 'Job')} at {intern.get('company', 'Company')}: {', '.join(intern.get('skills_required', []))}"
+            for i, intern in enumerate(internships[:10])
+        ]
         
-        prompt = f"""You are a career matching AI. Analyze how well a candidate matches each internship.
+        prompt = f"""Analyze candidate match for these internships.
 
 CANDIDATE SKILLS: {', '.join(user_skills)}
-{f"RESUME SUMMARY: {resume_text[:500]}" if resume_text else ""}
 
-AVAILABLE INTERNSHIPS:
+INTERNSHIPS:
 {chr(10).join(internship_summaries)}
 
-For each internship, provide a match score (0-100) and a brief reason.
-Return ONLY a JSON array with this exact format (no markdown, no code blocks):
-[
-  {{"id": 1, "score": 85, "reason": "Strong Python skills match"}},
-  {{"id": 2, "score": 60, "reason": "Has some ML basics"}}
-]
-
-Consider:
-1. Direct skill matches
-2. Related/transferable skills
-3. Learning potential based on existing skills
+Return ONLY a JSON array (no markdown):
+[{{"id": 1, "score": 85, "reason": "Strong match"}}, ...]
 """
         response = GoogleAPI.generate_content(prompt)
         
         if response:
-            # Clean the response
             response = response.strip()
-            if response.startswith("```"):
-                response = response.split("```")[1]
-                if response.startswith("json"):
-                    response = response[4:]
-            response = response.strip()
+            if "```" in response:
+                response = response.split("```")[1].replace("json", "").strip()
             
             try:
-                ai_scores = json.loads(response)
-                return ai_scores
-            except json.JSONDecodeError:
-                return None
+                return json.loads(response)
+            except:
+                pass
         return None
     except Exception as e:
         print(f"Gemini matching failed: {e}")
         return None
 
 
-async def gemini_get_personalized_advice(user_skills: List[str], internship: Dict, missing_skills: List[str]) -> str:
-    """Get AI-powered personalized advice for an internship"""
+async def gemini_get_advice(user_skills: List[str], internship: Dict) -> str:
+    """Get AI advice for applying"""
     if not GEMINI_AVAILABLE:
         return None
     
     try:
-        prompt = f"""Give brief, actionable advice (2-3 sentences) for a candidate applying to this internship:
-
-INTERNSHIP: {internship['title']} at {internship['company']}
-REQUIRED SKILLS: {', '.join(internship['skills_required'])}
-CANDIDATE HAS: {', '.join(user_skills[:10])}
-CANDIDATE MISSING: {', '.join(missing_skills[:5])}
-
-Focus on:
-1. How to bridge the skill gap quickly
-2. What to highlight in the application
-3. Any related skills that could be valuable
-"""
-        response = GoogleAPI.generate_content(prompt)
-        return response.strip() if response else None
-    except Exception:
-        return None
-
-
-async def gemini_recommend_best_internships(user_skills: List[str], career_goal: Optional[str] = None) -> Dict:
-    """Get AI-powered internship recommendations"""
-    if not GEMINI_AVAILABLE:
-        return None
-    
-    try:
-        internship_list = "\n".join([
-            f"- {i['title']} at {i['company']} ({i['location']}): {', '.join(i['skills_required'])}"
-            for i in INTERNSHIPS_DB
-        ])
+        prompt = f"""Brief advice (2 sentences) for applying to:
+{internship.get('title', 'Internship')} at {internship.get('company', 'Company')}
+Required: {', '.join(internship.get('skills_required', []))}
+Candidate has: {', '.join(user_skills[:8])}"""
         
-        prompt = f"""As a career advisor, recommend the best internship path for this candidate:
-
-CANDIDATE SKILLS: {', '.join(user_skills)}
-CAREER GOAL: {career_goal or 'Software Development'}
-
-AVAILABLE INTERNSHIPS:
-{internship_list}
-
-Provide:
-1. TOP 3 recommended internships (ranked)
-2. Why each is a good fit
-3. Skills to develop before applying
-4. Overall career advice
-
-Keep response under 300 words, be specific and practical.
-"""
-        response = GoogleAPI.generate_content(prompt)
-        return {
-            "recommendation": response,
-            "ai_powered": True
-        }
-    except Exception:
+        return GoogleAPI.generate_content(prompt)
+    except:
         return None
 
 
 # ==================== Helper Functions ====================
 
 def calculate_match_score(user_skills: List[str], internship: Dict) -> Dict:
-    """Calculate how well user matches an internship"""
+    """Calculate match score"""
     user_skills_lower = [s.lower() for s in user_skills]
-    required_skills = internship.get('skills_required', [])
+    required = internship.get('skills_required', [])
     
-    matched = [skill for skill in required_skills if skill.lower() in user_skills_lower]
-    missing = [skill for skill in required_skills if skill.lower() not in user_skills_lower]
+    matched = [s for s in required if s.lower() in user_skills_lower]
+    missing = [s for s in required if s.lower() not in user_skills_lower]
     
-    if len(required_skills) > 0:
-        score = int((len(matched) / len(required_skills)) * 100)
-    else:
-        score = 50
+    score = int((len(matched) / len(required)) * 100) if required else 50
     
-    return {
-        'score': score,
-        'matched': matched,
-        'missing': missing
-    }
+    return {'score': score, 'matched': matched, 'missing': missing}
 
 
 # ==================== API Endpoints ====================
 
 @router.post("/match")
 async def match_internships(request: InternshipMatchRequest):
-    """
-    Match internships based on skills using Gemini AI
-    Returns ranked list of matched internships with AI recommendations
-    """
+    """Match internships using RapidAPI data and Gemini AI"""
     try:
-        matches = []
+        internships = []
+        source = "sample"
         
-        # Try to get AI-powered match scores
-        ai_scores = await gemini_calculate_match_scores(
-            request.skills, 
-            INTERNSHIPS_DB,
-            request.resume_text
-        )
+        # Try to fetch from RapidAPI
+        if RAPIDAPI_AVAILABLE:
+            search_query = request.search_query or " ".join(request.skills[:3]) + " intern"
+            location = request.location or "India"
+            
+            api_results = await fetch_internships_from_rapidapi(search_query, location)
+            
+            if api_results:
+                internships = [parse_rapidapi_internship(job, i) for i, job in enumerate(api_results)]
+                source = "rapidapi"
         
-        # Create a lookup for AI scores
+        # Fallback to sample data
+        if not internships:
+            internships = SAMPLE_INTERNSHIPS
+            source = "sample"
+        
+        # Get AI match scores
+        ai_scores = await gemini_calculate_match_scores(request.skills, internships)
         ai_score_map = {}
         if ai_scores:
             for item in ai_scores:
-                ai_score_map[str(item.get('id', 0))] = {
-                    'score': item.get('score', 50),
-                    'reason': item.get('reason', '')
-                }
+                ai_score_map[str(item.get('id', 0))] = item
         
-        for idx, internship in enumerate(INTERNSHIPS_DB):
-            # Calculate base match
+        matches = []
+        for idx, internship in enumerate(internships):
             match_result = calculate_match_score(request.skills, internship)
             
-            # Apply location filter if provided
+            # Apply location filter
             if request.location:
-                if request.location.lower() not in internship['location'].lower():
-                    if 'remote' not in internship['location'].lower():
+                if request.location.lower() not in internship.get('location', '').lower():
+                    if 'remote' not in internship.get('location', '').lower():
                         continue
             
-            # Get score - prefer AI score if available
+            # Get score
             ai_data = ai_score_map.get(str(idx + 1), {})
-            if ai_data and ai_data.get('score'):
-                score = ai_data['score']
-                ai_reason = ai_data.get('reason', '')
-            else:
-                score = match_result['score']
-                ai_reason = None
+            score = ai_data.get('score', match_result['score'])
+            ai_reason = ai_data.get('reason')
             
-            # Boost score based on career score
+            # Boost with career score
             if request.career_score:
-                bonus = min(10, request.career_score // 100)
-                score = min(100, score + bonus)
+                score = min(100, score + request.career_score // 100)
             
-            # Get AI advice for top matches
+            # Get advice for top matches
             recommendation = None
-            if score >= 50 and GEMINI_AVAILABLE and len(matches) < 5:
-                recommendation = await gemini_get_personalized_advice(
-                    request.skills, 
-                    internship, 
-                    match_result['missing']
-                )
+            if score >= 60 and len(matches) < 5:
+                recommendation = await gemini_get_advice(request.skills, internship)
             
             matches.append(InternshipMatchResponse(
                 internship_id=internship['id'],
                 title=internship['title'],
                 company=internship['company'],
-                location=internship['location'],
+                location=internship.get('location', 'Remote'),
                 match_score=score,
                 matched_skills=match_result['matched'],
                 missing_skills=match_result['missing'],
-                stipend=internship['stipend'],
-                duration=internship['duration'],
-                apply_link=internship['apply_link'],
+                stipend=internship.get('stipend'),
+                duration=internship.get('duration'),
+                apply_link=internship.get('apply_link', '#'),
+                description=internship.get('description'),
                 recommendation=recommendation,
-                ai_match_reason=ai_reason
+                ai_match_reason=ai_reason,
+                source=source
             ))
         
-        # Sort by match score
         matches.sort(key=lambda x: x.match_score, reverse=True)
         
         return {
             "total_matches": len(matches),
-            "ai_powered": GEMINI_AVAILABLE and bool(ai_scores),
+            "source": source,
+            "rapidapi_enabled": RAPIDAPI_AVAILABLE,
+            "ai_powered": GEMINI_AVAILABLE,
             "matches": [m.dict() for m in matches]
         }
         
@@ -391,133 +361,97 @@ async def match_internships(request: InternshipMatchRequest):
         raise HTTPException(status_code=500, detail=f"Error matching internships: {str(e)}")
 
 
+@router.post("/search")
+async def search_internships(request: InternshipSearchRequest):
+    """Search internships using RapidAPI"""
+    try:
+        if not RAPIDAPI_AVAILABLE:
+            # Return sample data filtered by query
+            query_lower = request.query.lower()
+            filtered = [
+                i for i in SAMPLE_INTERNSHIPS
+                if query_lower in i['title'].lower() or 
+                   query_lower in i['company'].lower() or
+                   any(query_lower in s.lower() for s in i['skills_required'])
+            ]
+            return {
+                "total": len(filtered),
+                "source": "sample",
+                "internships": filtered
+            }
+        
+        api_results = await fetch_internships_from_rapidapi(
+            request.query, 
+            request.location or "India",
+            request.page
+        )
+        
+        internships = [parse_rapidapi_internship(job, i) for i, job in enumerate(api_results)]
+        
+        return {
+            "total": len(internships),
+            "source": "rapidapi",
+            "page": request.page,
+            "internships": internships
+        }
+        
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error searching internships: {str(e)}")
+
+
 @router.get("/list")
 async def list_all_internships():
-    """Get list of all available internships"""
-    return {
-        "total": len(INTERNSHIPS_DB),
-        "internships": INTERNSHIPS_DB
-    }
+    """Get internships (from API or sample)"""
+    if RAPIDAPI_AVAILABLE:
+        api_results = await fetch_internships_from_rapidapi("software intern", "India")
+        if api_results:
+            internships = [parse_rapidapi_internship(job, i) for i, job in enumerate(api_results)]
+            return {"total": len(internships), "source": "rapidapi", "internships": internships}
+    
+    return {"total": len(SAMPLE_INTERNSHIPS), "source": "sample", "internships": SAMPLE_INTERNSHIPS}
 
 
 @router.get("/{internship_id}")
 async def get_internship_details(internship_id: str):
-    """Get details of a specific internship with AI insights"""
-    for internship in INTERNSHIPS_DB:
+    """Get internship details"""
+    for internship in SAMPLE_INTERNSHIPS:
         if internship['id'] == internship_id:
-            # Add AI-powered insights
-            insight = None
-            if GEMINI_AVAILABLE:
-                try:
-                    prompt = f"""Provide a brief overview (2-3 sentences) of what a candidate would learn and gain from this internship:
-
-{internship['title']} at {internship['company']}
-Skills: {', '.join(internship['skills_required'])}
-Description: {internship['description']}
-"""
-                    insight = GoogleAPI.generate_content(prompt)
-                except:
-                    pass
-            
-            return {
-                **internship,
-                "ai_insight": insight
-            }
+            return internship
     
     raise HTTPException(status_code=404, detail="Internship not found")
 
 
 @router.post("/recommend")
-async def get_ai_internship_recommendation(request: InternshipMatchRequest):
-    """
-    Get AI-powered internship recommendations based on profile
-    Uses Gemini to provide personalized career advice
-    """
+async def get_ai_recommendation(request: InternshipMatchRequest):
+    """Get AI-powered career recommendations"""
     if not GEMINI_AVAILABLE:
-        # Fallback to basic matching
-        matches = []
-        for internship in INTERNSHIPS_DB:
-            match_result = calculate_match_score(request.skills, internship)
-            if match_result['score'] >= 30:
-                matches.append({
-                    "title": internship['title'],
-                    "company": internship['company'],
-                    "score": match_result['score']
-                })
-        
-        matches.sort(key=lambda x: x['score'], reverse=True)
-        
         return {
-            "recommendation": f"Based on your skills ({', '.join(request.skills[:5])}), we recommend: " + 
-                            ", ".join([f"{m['title']} at {m['company']}" for m in matches[:3]]),
-            "top_matches": matches[:3],
+            "recommendation": f"Based on your skills ({', '.join(request.skills[:5])}), consider applying to software development internships.",
             "ai_powered": False
         }
     
     try:
-        result = await gemini_recommend_best_internships(
-            request.skills,
-            request.experience_level
-        )
-        
-        if result:
-            return result
-        else:
-            raise HTTPException(status_code=500, detail="Failed to generate recommendation")
-            
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error generating recommendation: {str(e)}")
+        prompt = f"""As a career advisor, give brief recommendations for a candidate with these skills: {', '.join(request.skills)}
 
+Include:
+1. Best internship types to apply for
+2. Skills to develop
+3. Application tips
 
-@router.post("/ai-match")
-async def ai_powered_match(request: InternshipMatchRequest):
-    """
-    Full AI-powered internship matching using Gemini
-    Provides intelligent matching beyond simple skill overlap
-    """
-    if not GEMINI_AVAILABLE:
-        raise HTTPException(status_code=503, detail="AI service not available")
-    
-    try:
-        # Get comprehensive AI analysis
-        prompt = f"""You are an expert career counselor. Analyze this candidate and match them with the best internships.
-
-CANDIDATE PROFILE:
-- Skills: {', '.join(request.skills)}
-- Experience Level: {request.experience_level or 'beginner'}
-- Preferred Location: {request.location or 'Any'}
-- Career Score: {request.career_score or 'Not provided'}
-{f"- Resume Summary: {request.resume_text[:300]}..." if request.resume_text else ""}
-
-AVAILABLE INTERNSHIPS:
-{json.dumps([{
-    'id': i['id'],
-    'title': i['title'],
-    'company': i['company'],
-    'skills': i['skills_required'],
-    'location': i['location']
-} for i in INTERNSHIPS_DB], indent=2)}
-
-Provide a detailed analysis including:
-1. TOP 3 BEST MATCHES with match percentage and reasoning
-2. SKILL GAPS to address for each recommendation
-3. PREPARATION TIPS for the application process
-4. LEARNING PATH to maximize chances
-
-Be specific, actionable, and encouraging. Format clearly.
-"""
+Keep under 200 words."""
         
         response = GoogleAPI.generate_content(prompt)
+        return {"recommendation": response, "ai_powered": True}
         
-        if response:
-            return {
-                "analysis": response,
-                "candidate_skills": request.skills,
-                "total_internships_analyzed": len(INTERNSHIPS_DB),
-                "ai_powered": True
-            }
-        else:
-            raise HTTPException(status_code=500, detail="AI analysis returned empty response")
-            
     except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Error in AI matching: {str(e)}")
+        raise HTTPException(status_code=500, detail=f"Error: {str(e)}")
+
+
+@router.get("/status/api")
+async def get_api_status():
+    """Check RapidAPI status"""
+    return {
+        "rapidapi_configured": RAPIDAPI_AVAILABLE,
+        "rapidapi_host": RAPIDAPI_HOST if RAPIDAPI_AVAILABLE else None,
+        "gemini_available": GEMINI_AVAILABLE
+    }
