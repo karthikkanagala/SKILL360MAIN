@@ -18,6 +18,7 @@ try:
 except ImportError as e:
     print(f"Warning: Could not import modules: {e}")
     def extract_skills(text):
+        """Fallback skill extractor with word-boundary matching to avoid substring false-positives."""
         tech_skills = [
             'Python', 'Java', 'JavaScript', 'TypeScript', 'C++', 'C#', 'Ruby', 'Go', 'Rust', 'Swift', 'Kotlin',
             'React', 'Angular', 'Vue', 'Node.js', 'Django', 'Flask', 'FastAPI', 'Spring', 'Express',
@@ -26,12 +27,18 @@ except ImportError as e:
             'SQL', 'MongoDB', 'PostgreSQL', 'MySQL', 'Redis',
             'HTML', 'CSS', 'REST API', 'GraphQL', 'Microservices'
         ]
-        found = []
+        found = set()
         text_lower = text.lower()
+        import re
+
         for skill in tech_skills:
-            if skill.lower() in text_lower:
-                found.append(skill)
-        return found
+            # Use regex with word boundaries to prevent matching substrings inside other words
+            escaped = re.escape(skill.lower())
+            pattern = r"\b" + escaped + r"\b"
+            if re.search(pattern, text_lower):
+                found.add(skill)
+
+        return sorted(found, key=str.lower)
 
 # Import Gemini
 try:
